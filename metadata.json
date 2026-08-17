@@ -1,0 +1,6 @@
+{
+  "name": "Control de Incidentes y Tiendas",
+  "description": "Aplicación para la gestión y actualización ágil de hallazgos y comentarios de casos de investigación, sincronizada con SharePoint.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
