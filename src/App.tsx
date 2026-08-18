@@ -179,8 +179,7 @@ export default function App() {
     setCurrentPage(1);
   }, [searchQuery, selectedTienda, selectedAlerta, selectedHallazgo, selectedFecha, selectedStatusInvestigacion]);
 
-  // Carga directa paginada desde Supabase (trae los 22k registros en lotes de 1000)
-  const fetchData = async () => {
+const fetchData = async () => {
     if (!selectedSabana) return;
     setIsLoading(true);
     try {
@@ -198,7 +197,7 @@ export default function App() {
           .range(from, from + batchSize - 1);
 
         if (error) {
-          console.error("Error al consultar Supabase:", error.message);
+          console.error("Error al consultar Supabase casos_mass:", error.message);
           break;
         }
 
@@ -216,47 +215,55 @@ export default function App() {
 
       console.log(`Total registros descargados: ${allRows.length}`);
 
-      // Función auxiliar para mostrar YYYY-MM-DD limpio sin "00:00:00"
       const cleanDate = (d: any) => {
         if (!d) return "";
         return String(d).trim().slice(0, 10);
       };
-      
-      // Mapeo directo a la estructura visual CaseRecord
-      const mappedRecords: CaseRecord[] = allRows.map((r) => ({
+
+      const mappedRecords: CaseRecord[] = allRows.map((r, index) => {
         const montoVal = r.importe_abordado_muestra ?? r.importe_abordad ?? r.monto ?? r.aborado ?? 0;
+        
         return {
-        _rowNum: r.id,
-        "N° BOLETA": r.boleta,
-        "CARRION 1": r.carrion1,
-        "TIENDA": r.tienda,
-        "FECHA DETECCIÓN": r.fecha_deteccion,
-        "FECHA DE CIERRE": r.fecha_cierra,
-        "FECHA DE CIERRA": r.fecha_cierra,
-        "ALERTA": r.alerta,
-        "ABORADO": r.importe_abordado_muestra ?? 0,
-        "MONTO": r.importe_abordado_muestra ?? 0,
-        "DESCRIPCION DEL EVENTO": r.descripcion_evento,
-        "STATUS INVESTIGACIÓN": r.status_investigacion || "ABIERTO",
-        "HALLAZGOS": r.hallazgos,
-        "Comentarios": r.comentarios,
-        "COLABORADOR": r.colaborador,
-        "DNI": r.dni,
-        "CARGO": r.cargo,
-        "SECCION": r.seccion,
-        "CARTA DESCUENTO": r.carta_descuento,
-        "CONTRIBUCION TOTAL ESTIMADA": r.contribucion_total_estimada,
-        "CONTRIBUCION MENSUAL": r.contribucion_mensual ?? "",
-        "ACCIÓN DISCIPLINARIA": r.accion_disciplinaria,
-        "COMENTARIOS ERROR CSTV": r.comentarios_error_cstv,
-        "CARGO REAL": r.cargo_real,
-        "USUARIO": r.usuario,
-        "FORMATO": "MASS"
-      } as unknown as CaseRecord;
-    });
+          _rowNum: index + 1,
+          "N° BOLETA": r.boleta || "",
+          boleta: r.boleta || "",
+          "CARRION 1": r.carrion1 || "",
+          "TIENDA": r.tienda || "",
+          "ID TIENDA": r.carrion1 || "",
+          "FECHA DETECCIÓN": cleanDate(r.fecha_deteccion),
+          "FECHA DE CIERRE": cleanDate(r.fecha_cierra),
+          "FECHA DE CIERRA": cleanDate(r.fecha_cierra),
+          "ALERTA": r.alerta || "",
+          "CANTIDAD ALERTA": 1,
+          "ABORADO": Number(montoVal),
+          "MONTO": Number(montoVal),
+          "DESCRIPCIÓN DEL EVENTO": r.descripcion_evento || r.descripcion_ever || "",
+          "STATUS INVESTIGACIÓN": r.status_investigacion || r.status_investigac || "ABIERTO",
+          "HALLAZGOS": r.hallazgos || "",
+          "Comentarios": r.comentarios || "",
+          "COLABORADOR": r.colaborador || "",
+          "DNI": r.dni || "",
+          "CARGO": r.cargo || "",
+          "SECCIÓN": r.seccion || "",
+          "CARTA DESCUENTO": r.carta_descuento ?? "",
+          "CONTRIBUCION TOTAL ESTIMADA": r.contribucion_total_estimada ?? r.contribucion_tota ?? "",
+          "CONTRIBUCION MENSUAL": r.contribucion_mensual ?? r.contribucion_me ?? "",
+          "ACCIÓN DISCIPLINARIA": r.accion_disciplinaria || r.accion_disciplina || "",
+          "COMENTARIOS ERROR CSTV": r.comentarios_error_cstv || r.comentarios_erro || "",
+          "CARGO REAL": r.cargo_real || "",
+          "USUARIO": r.usuario || "",
+          "FORMATO": "MASS"
+        } as unknown as CaseRecord;
+      });
 
       setRawRecords(mappedRecords);
-      setStatus({ connected: true, mode: "online", lastAttempt: new Date().toISOString(), logs: [`${mappedRecords.length} registros cargados exitosamente de Supabase.`], error: null });
+      setStatus({
+        connected: true,
+        mode: "online",
+        lastAttempt: new Date().toISOString(),
+        logs: [`${mappedRecords.length} registros cargados exitosamente de Supabase.`],
+        error: null,
+      });
 
       const peruTime = new Intl.DateTimeFormat("es-PE", {
         timeZone: "America/Lima",
@@ -269,7 +276,7 @@ export default function App() {
         const fresh = mappedRecords.find((r) => r["N° BOLETA"] === selectedRecord["N° BOLETA"]);
         if (fresh) setSelectedRecord(fresh);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error al cargar registros:", err);
     } finally {
       setIsLoading(false);
