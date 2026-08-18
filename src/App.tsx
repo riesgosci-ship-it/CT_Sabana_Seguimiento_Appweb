@@ -193,7 +193,8 @@ export default function App() {
         const { data, error } = await supabase
           .from("casos_mass")
           .select("*")
-          .order("id", { ascending: true })
+          .order("fecha_deteccion", { ascending: false, nullsFirst: false })
+          .order("boleta", { ascending: true })
           .range(from, from + batchSize - 1);
 
         if (error) {
@@ -213,8 +214,18 @@ export default function App() {
         }
       }
 
+      console.log(`Total registros descargados: ${allRows.length}`);
+
+      // Función auxiliar para mostrar YYYY-MM-DD limpio sin "00:00:00"
+      const cleanDate = (d: any) => {
+        if (!d) return "";
+        return String(d).trim().slice(0, 10);
+      };
+      
       // Mapeo directo a la estructura visual CaseRecord
       const mappedRecords: CaseRecord[] = allRows.map((r) => ({
+        const montoVal = r.importe_abordado_muestra ?? r.importe_abordad ?? r.monto ?? r.aborado ?? 0;
+        return {
         _rowNum: r.id,
         "N° BOLETA": r.boleta,
         "CARRION 1": r.carrion1,
@@ -241,7 +252,8 @@ export default function App() {
         "CARGO REAL": r.cargo_real,
         "USUARIO": r.usuario,
         "FORMATO": "MASS"
-      } as unknown as CaseRecord));
+      } as unknown as CaseRecord;
+    });
 
       setRawRecords(mappedRecords);
       setStatus({ connected: true, mode: "online", lastAttempt: new Date().toISOString(), logs: [`${mappedRecords.length} registros cargados exitosamente de Supabase.`], error: null });
