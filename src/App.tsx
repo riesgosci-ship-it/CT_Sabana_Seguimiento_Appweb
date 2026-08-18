@@ -223,10 +223,10 @@ export default function App() {
         "FECHA DE CIERRE": r.fecha_cierra,
         "FECHA DE CIERRA": r.fecha_cierra,
         "ALERTA": r.alerta,
-        "ABORADO": r.importe_abordado_muestra,
-        "MONTO": r.importe_abordado_muestra,
+        "ABORADO": r.importe_abordado_muestra ?? 0,
+        "MONTO": r.importe_abordado_muestra ?? 0,
         "DESCRIPCION DEL EVENTO": r.descripcion_evento,
-        "STATUS INVESTIGACIÓN": r.status_investigacion,
+        "STATUS INVESTIGACIÓN": r.status_investigacion || "ABIERTO",
         "HALLAZGOS": r.hallazgos,
         "Comentarios": r.comentarios,
         "COLABORADOR": r.colaborador,
@@ -235,7 +235,7 @@ export default function App() {
         "SECCION": r.seccion,
         "CARTA DESCUENTO": r.carta_descuento,
         "CONTRIBUCION TOTAL ESTIMADA": r.contribucion_total_estimada,
-        "CONTRIBUCION MENSUAL": r.contribucion_mensual,
+        "CONTRIBUCION MENSUAL": r.contribucion_mensual ?? "",
         "ACCIÓN DISCIPLINARIA": r.accion_disciplinaria,
         "COMENTARIOS ERROR CSTV": r.comentarios_error_cstv,
         "CARGO REAL": r.cargo_real,
@@ -244,7 +244,7 @@ export default function App() {
       } as unknown as CaseRecord));
 
       setRawRecords(mappedRecords);
-      setStatus({ connected: true, mode: "online", lastAttempt: new Date().toISOString(), logs: [], error: null });
+      setStatus({ connected: true, mode: "online", lastAttempt: new Date().toISOString(), logs: [`${mappedRecords.length} registros cargados exitosamente de Supabase.`], error: null });
 
       const peruTime = new Intl.DateTimeFormat("es-PE", {
         timeZone: "America/Lima",
