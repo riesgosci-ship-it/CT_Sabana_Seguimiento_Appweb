@@ -33,11 +33,14 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     e.preventDefault();
     setError(null);
 
-    if (!username.trim()) {
+    const cleanUser = username.trim().toLowerCase();
+    const cleanPass = String(password).trim();
+
+    if (!cleanUser) {
       setError("Por favor, ingrese su usuario.");
       return;
     }
-    if (!password) {
+    if (!cleanPass) {
       setError("Por favor, ingrese su contraseña.");
       return;
     }
@@ -48,14 +51,14 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       const { data, error } = await getSupabase()
         .from("usuarios")
         .select("*")
-        .eq("user_email", username)
-        .eq("password", password)
-        .single();
+        .eq("user_email", cleanUser)
+        .eq("password", cleanPass)
+        .maybeSingle();
 
       if (error || !data) {
         setError("Usuario o contraseña incorrectos.");
       } else {
-        onLoginSuccess(data.user_email, data.name, data.role, data.formato);
+        onLoginSuccess(data.user_email, data.nombre_completo || data.user_email, data.cargo || "AUDITO", data.formato || "MASS");
       }
     } catch (err) {
       console.error(err);
