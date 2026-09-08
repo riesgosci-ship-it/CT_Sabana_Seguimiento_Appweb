@@ -29,6 +29,8 @@ export interface CaseRecord {
   "MONTO"?: number | string;
   "N° TOTAL DE ALERTAS (6 meses)"?: number;
   "PÉRDIDA ESTIMADA ACUM. (6 meses)"?: number;
+  "CONTRIBUCION TOTAL ESTIMADA"?: number | string;
+  "CONTRIBUCION MENSUAL"?: number | string;
   _isPendingChange?: boolean;
 }
 
@@ -46,4 +48,3 @@ export interface PendingChange {
   data: any;
   timestamp: string;
 }
-
