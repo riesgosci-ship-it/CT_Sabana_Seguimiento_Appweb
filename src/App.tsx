@@ -13,6 +13,44 @@ import {
   LogOut, User, Plus, CloudUpload
 } from "lucide-react";
 
+function MultiSelectFilter({ label, values, selected, onChange }: {
+  label: string;
+  values: string[];
+  selected: string[];
+  onChange: (values: string[]) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const visibleValues = values.filter((value) => value.toLowerCase().includes(query.toLowerCase()));
+  return (
+    <details className="relative">
+      <summary className="list-none cursor-pointer bg-white border border-slate-200 rounded-xl py-2 px-3 text-xs font-medium text-slate-700">
+        {selected.length ? `${label} (${selected.length})` : label}
+      </summary>
+      <div className="absolute z-20 mt-1 w-64 max-h-72 overflow-auto rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={`Buscar ${label.toLowerCase()}...`}
+          className="mb-2 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs outline-none"
+        />
+        <button type="button" onClick={() => onChange([])} className="mb-1 w-full rounded-lg px-2 py-1 text-left text-xs text-slate-500 hover:bg-slate-50">
+          Todas
+        </button>
+        {visibleValues.map((value) => (
+          <label key={value} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs hover:bg-slate-50">
+            <input
+              type="checkbox"
+              checked={selected.includes(value)}
+              onChange={(event) => onChange(event.target.checked ? [...selected, value] : selected.filter((item) => item !== value))}
+            />
+            <span className="truncate">{value}</span>
+          </label>
+        ))}
+      </div>
+    </details>
+  );
+}
+
 // Instancia directa de Supabase en Frontend
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.SUPABASE_ANON_KEY;
@@ -155,11 +193,14 @@ export default function App() {
   
   const [selectedRecord, setSelectedRecord] = useState<CaseRecord | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedTienda, setSelectedTienda] = useState("TODAS");
-  const [selectedAlerta, setSelectedAlerta] = useState("TODAS");
-  const [selectedHallazgo, setSelectedHallazgo] = useState("TODOS");
-  const [selectedFecha, setSelectedFecha] = useState("TODAS");
-  const [selectedStatusInvestigacion, setSelectedStatusInvestigacion] = useState("TODOS");
+  const [selectedHallazgos, setSelectedHallazgos] = useState<string[]>([]);
+  const [selectedTiendas, setSelectedTiendas] = useState<string[]>([]);
+  const [selectedAlertas, setSelectedAlertas] = useState<string[]>([]);
+  const [selectedFechas, setSelectedFechas] = useState<string[]>([]);
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+  const [selectedYears, setSelectedYears] = useState<string[]>([]);
+  const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
+  const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const [lastUpdated, setLastUpdated] = useState<string>("");
   
   const [isLoading, setIsLoading] = useState(true);
@@ -177,7 +218,7 @@ export default function App() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedTienda, selectedAlerta, selectedHallazgo, selectedFecha, selectedStatusInvestigacion]);
+  }, [searchQuery, selectedTiendas, selectedAlertas, selectedHallazgos, selectedFechas, selectedStatuses, selectedYears, selectedMonths, selectedDays]);
 
 const fetchData = async () => {
     if (!selectedSabana) return;
@@ -310,7 +351,11 @@ const fetchData = async () => {
     cargoReal: string,
     cartaDescuento: string,
     contribucionTotalEstimada: string,
-    cstvDetail: string
+    cstvDetail: string,
+    colaborador: string,
+    dni: string,
+    cargo: string,
+    seccion: string
   ): Promise<{ success: boolean; error?: string }> => {
     const today = new Date();
     const offset = -5 * 60;
@@ -321,6 +366,12 @@ const fetchData = async () => {
     const finalUsuario = hallazgos ? currentUserName : null;
 
     try {
+      const currentRecord = rawRecords.find((rec) => String(rec["N° BOLETA"] || "").trim() === boleta.trim());
+      const normalizedHallazgo = normalizeHallazgo(hallazgos);
+      const contribucionMensual = normalizedHallazgo === "HURTO" || normalizedHallazgo === "ERROR OPERATIVO"
+        ? Number(currentRecord?.["MONTO"] || 0)
+        : null;
+
       const { error } = await supabase
         .from("casos_mass")
         .update({
@@ -330,7 +381,12 @@ const fetchData = async () => {
           cargo_real: cargoReal || null,
           carta_descuento: cartaDescuento ? Number(cartaDescuento) : null,
           contribucion_total_estimada: contribucionTotalEstimada ? Number(contribucionTotalEstimada) : null,
+          contribucion_mensual: contribucionMensual,
           comentarios_error_cstv: cstvDetail || null,
+          colaborador: colaborador || null,
+          dni: dni || null,
+          cargo: cargo || null,
+          seccion: seccion || null,
           fecha_cierra: finalFechaCierre,
           usuario: finalUsuario,
           status_investigacion: hallazgos ? "CERRADO" : "ABIERTO",
@@ -355,7 +411,12 @@ const fetchData = async () => {
               "CARGO REAL": cargoReal,
               "CARTA DESCUENTO": cartaDescuento,
               "CONTRIBUCION TOTAL ESTIMADA": contribucionTotalEstimada,
+              "CONTRIBUCION MENSUAL": contribucionMensual ?? "",
               "COMENTARIOS ERROR CSTV": cstvDetail,
+              "COLABORADOR": colaborador,
+              "DNI": dni,
+              "CARGO": cargo,
+              "SECCIÓN": seccion,
               "FECHA DE CIERRE": finalFechaCierre || "",
               "FECHA DE CIERRA": finalFechaCierre || "",
               "USUARIO": finalUsuario || "",
@@ -376,7 +437,12 @@ const fetchData = async () => {
             "CARGO REAL": cargoReal,
             "CARTA DESCUENTO": cartaDescuento,
             "CONTRIBUCION TOTAL ESTIMADA": contribucionTotalEstimada,
+            "CONTRIBUCION MENSUAL": contribucionMensual ?? "",
             "COMENTARIOS ERROR CSTV": cstvDetail,
+            "COLABORADOR": colaborador,
+            "DNI": dni,
+            "CARGO": cargo,
+            "SECCIÓN": seccion,
             "FECHA DE CIERRE": finalFechaCierre || "",
             "FECHA DE CIERRA": finalFechaCierre || "",
             "USUARIO": finalUsuario || "",
@@ -490,28 +556,35 @@ const fetchData = async () => {
       });
     }
 
-    if (selectedTienda !== "TODAS") {
-      result = result.filter((r) => r["TIENDA"]?.trim() === selectedTienda);
+    if (selectedTiendas.length > 0) {
+      result = result.filter((r) => selectedTiendas.includes(r["TIENDA"]?.trim() || ""));
     }
 
-    if (selectedAlerta !== "TODAS") {
-      result = result.filter((r) => r["ALERTA"]?.trim() === selectedAlerta);
+    if (selectedAlertas.length > 0) {
+      result = result.filter((r) => selectedAlertas.includes(r["ALERTA"]?.trim() || ""));
     }
 
-    if (selectedFecha !== "TODAS") {
-      result = result.filter((r) => r["FECHA DETECCIÓN"]?.trim() === selectedFecha);
+    if (selectedFechas.length > 0) {
+      result = result.filter((r) => selectedFechas.includes(r["FECHA DETECCIÓN"]?.trim() || ""));
     }
 
-    if (selectedStatusInvestigacion !== "TODOS") {
-      result = result.filter((r) => r["STATUS INVESTIGACIÓN"]?.trim() === selectedStatusInvestigacion);
+    if (selectedYears.length > 0 || selectedMonths.length > 0 || selectedDays.length > 0) {
+      result = result.filter((r) => {
+        const [year, month, day] = (r["FECHA DETECCIÓN"]?.trim() || "").split("-");
+        return (selectedYears.length === 0 || selectedYears.includes(year)) &&
+          (selectedMonths.length === 0 || selectedMonths.includes(month)) &&
+          (selectedDays.length === 0 || selectedDays.includes(day));
+      });
     }
 
-    if (selectedHallazgo !== "TODOS") {
-      if (selectedHallazgo === "PENDIENTE") {
-        result = result.filter((r) => isRecordPending(r));
-      } else {
-        result = result.filter((r) => normalizeHallazgo(r["HALLAZGOS"]) === selectedHallazgo);
-      }
+    if (selectedStatuses.length > 0) {
+      result = result.filter((r) => selectedStatuses.includes(r["STATUS INVESTIGACIÓN"]?.trim() || ""));
+    }
+
+    if (selectedHallazgos.length > 0) {
+      result = result.filter((r) => selectedHallazgos.some((hallazgo) =>
+        hallazgo === "PENDIENTE" ? isRecordPending(r) : normalizeHallazgo(r["HALLAZGOS"]) === hallazgo
+      ));
     }
 
     if (sortField) {
@@ -532,7 +605,7 @@ const fetchData = async () => {
     }
 
     return result;
-  }, [records, searchQuery, selectedTienda, selectedAlerta, selectedHallazgo, selectedFecha, selectedStatusInvestigacion, sortField, sortAsc]);
+  }, [records, searchQuery, selectedTiendas, selectedAlertas, selectedHallazgos, selectedFechas, selectedStatuses, selectedYears, selectedMonths, selectedDays, sortField, sortAsc]);
 
   const totalPages = useMemo(() => {
     return Math.ceil(filteredRecords.length / pageSize) || 1;
@@ -909,87 +982,38 @@ const fetchData = async () => {
                 <div className="flex flex-wrap items-center gap-2.5">
                   <div className="flex items-center gap-2">
                     <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <select
-                      value={selectedTienda}
-                      onChange={(e) => setSelectedTienda(e.target.value)}
-                      className="bg-white border border-slate-200 rounded-xl py-2 px-3 text-xs font-medium focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all shadow-xs text-slate-700"
-                    >
-                      <option value="TODAS">Todas las Tiendas</option>
-                      {listTiendas.filter(t => t !== "TODAS").map((tienda) => (
-                        <option key={tienda} value={tienda}>{tienda}</option>
-                      ))}
-                    </select>
+                    <MultiSelectFilter label="Tiendas" values={listTiendas.filter((t) => t !== "TODAS")} selected={selectedTiendas} onChange={setSelectedTiendas} />
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <select
-                      value={selectedAlerta}
-                      onChange={(e) => setSelectedAlerta(e.target.value)}
-                      className="bg-white border border-slate-200 rounded-xl py-2 px-3 text-xs font-medium focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all shadow-xs text-slate-700"
-                    >
-                      <option value="TODAS">Todas las Alertas</option>
-                      {listAlertas.filter(a => a !== "TODAS").map((alerta) => (
-                        <option key={alerta} value={alerta}>{alerta}</option>
-                      ))}
-                    </select>
+                    <MultiSelectFilter label="Alertas" values={listAlertas.filter((a) => a !== "TODAS")} selected={selectedAlertas} onChange={setSelectedAlertas} />
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <select
-                      value={selectedFecha}
-                      onChange={(e) => setSelectedFecha(e.target.value)}
-                      className="bg-white border border-slate-200 rounded-xl py-2 px-3 text-xs font-medium focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all shadow-xs text-slate-700"
-                    >
-                      <option value="TODAS">Todas las Fechas</option>
-                      {listFechas.filter(f => f !== "TODAS").map((fecha) => (
-                        <option key={fecha} value={fecha}>{fecha}</option>
-                      ))}
-                    </select>
+                    <MultiSelectFilter label="Fechas" values={listFechas.filter((f) => f !== "TODAS")} selected={selectedFechas} onChange={setSelectedFechas} />
+                    <MultiSelectFilter label="Años" values={Array.from(new Set(listFechas.slice(1).map((f) => f.slice(0, 4))))} selected={selectedYears} onChange={setSelectedYears} />
+                    <MultiSelectFilter label="Meses" values={Array.from(new Set<string>(listFechas.slice(1).map((f) => f.slice(5, 7)))).sort()} selected={selectedMonths} onChange={setSelectedMonths} />
+                    <MultiSelectFilter label="Días" values={Array.from(new Set<string>(listFechas.slice(1).map((f) => f.slice(8, 10)))).sort()} selected={selectedDays} onChange={setSelectedDays} />
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <select
-                      value={selectedStatusInvestigacion}
-                      onChange={(e) => setSelectedStatusInvestigacion(e.target.value)}
-                      className="bg-white border border-slate-200 rounded-xl py-2 px-3 text-xs font-medium focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all shadow-xs text-slate-700"
-                    >
-                      <option value="TODOS">Todos los Estados Inv.</option>
-                      {listStatusInvestigacion.filter(s => s !== "TODOS").map((statusInv) => (
-                        <option key={statusInv} value={statusInv}>{statusInv}</option>
-                      ))}
-                    </select>
+                    <MultiSelectFilter label="Estados Inv." values={listStatusInvestigacion.filter((s) => s !== "TODOS")} selected={selectedStatuses} onChange={setSelectedStatuses} />
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2 self-start md:self-auto">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider hidden sm:inline font-mono">Hallazgos:</span>
-                  <div className="flex bg-slate-100 rounded-xl p-1 border border-slate-200 shadow-xs">
-                    {[
-                      { key: "TODOS", label: "Todos" },
-                      { key: "PENDIENTE", label: "Pendientes" },
-                      { key: "CONFORME", label: "Conformes" },
-                      { key: "ERROR OPERATIVO", label: "Err. Op." },
-                      { key: "HURTO", label: "Hurtos" },
-                      { key: "ERROR CCTV", label: "Error CCTV" }
-                    ].map((opt) => (
-                      <button
-                        key={opt.key}
-                        onClick={() => setSelectedHallazgo(opt.key)}
-                        className={`px-3 py-1 text-xs font-medium rounded-lg transition-all cursor-pointer ${
-                          selectedHallazgo === opt.key
-                            ? "bg-white text-slate-950 shadow-xs font-bold"
-                            : "text-slate-500 hover:text-slate-800"
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
+                  <MultiSelectFilter
+                    label="Hallazgos"
+                    values={["PENDIENTE", "CONFORME", "ERROR OPERATIVO", "HURTO", "ERROR CCTV"]}
+                    selected={selectedHallazgos}
+                    onChange={setSelectedHallazgos}
+                  />
                 </div>
 
               </div>
 
-              {(selectedTienda !== "TODAS" || selectedAlerta !== "TODAS" || selectedFecha !== "TODAS" || selectedStatusInvestigacion !== "TODOS" || selectedHallazgo !== "TODOS" || searchQuery !== "") && (
+              {(selectedTiendas.length > 0 || selectedAlertas.length > 0 || selectedFechas.length > 0 || selectedStatuses.length > 0 || selectedYears.length > 0 || selectedMonths.length > 0 || selectedDays.length > 0 || selectedHallazgos.length > 0 || searchQuery !== "") && (
                 <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 animate-in fade-in duration-150">
                   <div className="flex flex-wrap items-center gap-1.5 text-xs">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">Filtros Activos:</span>
@@ -1000,33 +1024,33 @@ const fetchData = async () => {
                       </span>
                     )}
 
-                    {selectedTienda !== "TODAS" && (
+                    {selectedTiendas.length > 0 && (
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 border border-slate-200 rounded-lg text-slate-700 text-[11px] font-medium">
-                        Tienda: {selectedTienda}
+                        Tienda: {selectedTiendas.join(", ")}
                       </span>
                     )}
 
-                    {selectedAlerta !== "TODAS" && (
+                    {selectedAlertas.length > 0 && (
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 border border-slate-200 rounded-lg text-slate-700 text-[11px] font-medium">
-                        Alerta: {selectedAlerta}
+                        Alerta: {selectedAlertas.join(", ")}
                       </span>
                     )}
 
-                    {selectedFecha !== "TODAS" && (
+                    {(selectedFechas.length > 0 || selectedYears.length > 0 || selectedMonths.length > 0 || selectedDays.length > 0) && (
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 border border-slate-200 rounded-lg text-slate-700 text-[11px] font-medium">
-                        Fecha: {selectedFecha}
+                        Fecha: {[...selectedFechas, ...selectedYears.map((v) => `año ${v}`), ...selectedMonths.map((v) => `mes ${v}`), ...selectedDays.map((v) => `día ${v}`)].join(", ")}
                       </span>
                     )}
 
-                    {selectedStatusInvestigacion !== "TODOS" && (
+                    {selectedStatuses.length > 0 && (
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 border border-slate-200 rounded-lg text-slate-700 text-[11px] font-medium">
-                        Edo. Inv: {selectedStatusInvestigacion}
+                        Edo. Inv: {selectedStatuses.join(", ")}
                       </span>
                     )}
 
-                    {selectedHallazgo !== "TODOS" && (
+                    {selectedHallazgos.length > 0 && (
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 border border-slate-200 rounded-lg text-slate-700 text-[11px] font-medium">
-                        Hallazgo: {selectedHallazgo}
+                        Hallazgo: {selectedHallazgos.join(", ")}
                       </span>
                     )}
                   </div>
@@ -1034,11 +1058,14 @@ const fetchData = async () => {
                   <button
                     onClick={() => {
                       setSearchQuery("");
-                      setSelectedTienda("TODAS");
-                      setSelectedAlerta("TODAS");
-                      setSelectedFecha("TODAS");
-                      setSelectedStatusInvestigacion("TODOS");
-                      setSelectedHallazgo("TODOS");
+                      setSelectedTiendas([]);
+                      setSelectedAlertas([]);
+                      setSelectedFechas([]);
+                      setSelectedStatuses([]);
+                      setSelectedYears([]);
+                      setSelectedMonths([]);
+                      setSelectedDays([]);
+                      setSelectedHallazgos([]);
                     }}
                     className="text-xs font-bold text-slate-900 hover:text-slate-700 hover:underline cursor-pointer flex items-center gap-1 shrink-0"
                   >
@@ -1129,7 +1156,8 @@ const fetchData = async () => {
                       let sum = 0;
                       
                       rawRecords.forEach(r => {
-                        if (dni && String(r["DNI"]).trim() === String(dni).trim()) {
+                        if (dni && String(r["DNI"]).trim() === String(dni).trim() &&
+                            ["HURTO", "ERROR OPERATIVO"].includes(normalizeHallazgo(r["HALLAZGOS"]))) {
                           const fecha = new Date(r["FECHA DETECCIÓN"] || "");
                           if (!isNaN(fecha.getTime()) && fecha >= sixMonthsAgo) {
                             count++;

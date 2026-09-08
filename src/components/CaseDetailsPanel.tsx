@@ -9,7 +9,7 @@ import {
 interface CaseDetailsPanelProps {
   record: CaseRecord | null;
   onClose: () => void;
-  onSave: (rowNum: number, boleta: string, hallazgos: string, comentarios: string, accDisciplinaria: string, cargoReal: string, cartaDescuento: string, contribucionTotalEstimada: string, cstvDetail: string) => Promise<{ success: boolean; error?: string }>;
+  onSave: (rowNum: number, boleta: string, hallazgos: string, comentarios: string, accDisciplinaria: string, cargoReal: string, cartaDescuento: string, contribucionTotalEstimada: string, cstvDetail: string, colaborador: string, dni: string, cargo: string, seccion: string) => Promise<{ success: boolean; error?: string }>;
   selectedSabana: "mass" | "fdc" | null;
 }
 
@@ -72,6 +72,10 @@ export default function CaseDetailsPanel({
   const [hallazgos, setHallazgos] = useState<string>("");
   const [comentarios, setComentarios] = useState<string>("");
   const [cstvDetail, setCstvDetail] = useState<string>("");
+  const [colaborador, setColaborador] = useState("");
+  const [dni, setDni] = useState("");
+  const [cargo, setCargo] = useState("");
+  const [seccion, setSeccion] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -114,10 +118,14 @@ export default function CaseDetailsPanel({
       setHallazgos(norm);
       setComentarios(record["Comentarios"] || "");
       setCstvDetail(record["COMENTARIOS ERROR CSTV"] || "");
+      setColaborador(record["COLABORADOR"] || "");
+      setDni(String(record["DNI"] || ""));
+      setCargo(record["CARGO"] || "");
+      setSeccion(record["SECCIÓN"] || "");
       setAccDisciplinaria(record["ACCIÓN DISCIPLINARIA"] || "");
       setCargoReal(record["CARGO REAL"] || "");
       setCartaDescuento(String(record["CARTA DESCUENTO"] || ""));
-      setContribucionTotalEstimada(String(record["contribucion_total_estimada"] || ""));
+      setContribucionTotalEstimada(String(record["CONTRIBUCION TOTAL ESTIMADA"] || ""));
       setSaveSuccess(false);
       setSaveError(null);
     }
@@ -164,7 +172,7 @@ export default function CaseDetailsPanel({
       // Actually, I should update the onSave signature to be more flexible, but I will stick to the existing interface for now and pack everything in 'comentarios' if needed, or update the interface. 
       // Updating the interface is better.
 
-      const result = await onSave(record._rowNum, record["N° BOLETA"], hallazgos, comentarios, accDisciplinaria, cargoReal, cartaDescuento, contribucionTotalEstimada, cstvDetail);
+      const result = await onSave(record._rowNum, record["N° BOLETA"], hallazgos, comentarios, accDisciplinaria, cargoReal, cartaDescuento, contribucionTotalEstimada, cstvDetail, colaborador, dni, cargo, seccion);
       if (result.success) {
         setSaveSuccess(true);
         // Hide success banner after 3 seconds
@@ -179,7 +187,19 @@ export default function CaseDetailsPanel({
     }
   };
 
-  const hasChanges = hallazgos !== (record["HALLAZGOS"] || "") || comentarios !== (record["Comentarios"] || "");
+  const hasChanges = hallazgos !== (record["HALLAZGOS"] || "") || comentarios !== (record["Comentarios"] || "") ||
+    colaborador !== (record["COLABORADOR"] || "") || dni !== String(record["DNI"] || "") ||
+    cargo !== (record["CARGO"] || "") || seccion !== (record["SECCIÓN"] || "") ||
+    accDisciplinaria !== (record["ACCIÓN DISCIPLINARIA"] || "") ||
+    cargoReal !== (record["CARGO REAL"] || "") ||
+    cartaDescuento !== String(record["CARTA DESCUENTO"] || "") ||
+    contribucionTotalEstimada !== String(record["CONTRIBUCION TOTAL ESTIMADA"] || "");
+  const collaboratorFields: Array<{ label: string; value: string; setter: React.Dispatch<React.SetStateAction<string>> }> = [
+    { label: "COLABORADOR", value: colaborador, setter: setColaborador },
+    { label: "DNI", value: dni, setter: setDni },
+    { label: "PUESTO", value: cargo, setter: setCargo },
+    { label: "SECCIÓN", value: seccion, setter: setSeccion },
+  ];
 
   return (
     <div className="h-full flex flex-col bg-white rounded-3xl border border-slate-100 shadow-[0_10px_35px_rgba(0,0,0,0.025)] overflow-hidden">
@@ -256,6 +276,19 @@ export default function CaseDetailsPanel({
             <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
               Diagnóstico de Investigación
             </h4>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {collaboratorFields.map(({ label, value, setter }) => (
+              <label key={label} className="space-y-1">
+                <span className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider font-mono">{label}</span>
+                <input
+                  value={value}
+                  onChange={(event) => setter(event.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-700 outline-none focus:border-slate-900"
+                />
+              </label>
+            ))}
           </div>
 
           {/* 1. HALLAZGOS SELECTOR - Premium Stacked Cards with descriptions */}
@@ -514,7 +547,7 @@ export default function CaseDetailsPanel({
                 onClick={() => {
                   setHallazgos(record["HALLAZGOS"] || "");
                   setComentarios(record["Comentarios"] || "");
-                  setContribucionTotalEstimada(String(record["contribucion_total_estimada"] || ""));
+                  setContribucionTotalEstimada(String(record["CONTRIBUCION TOTAL ESTIMADA"] || ""));
                 }}
                 className="px-3.5 py-3 text-xs font-semibold text-slate-600 hover:text-slate-950 hover:bg-slate-50 border border-slate-200 rounded-2xl transition-all flex items-center gap-1 cursor-pointer"
                 title="Descartar cambios no guardados"
