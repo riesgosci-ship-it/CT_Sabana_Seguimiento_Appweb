@@ -992,8 +992,8 @@ const fetchData = async () => {
                   <div className="flex items-center gap-2">
                     <MultiSelectFilter label="Fechas" values={listFechas.filter((f) => f !== "TODAS")} selected={selectedFechas} onChange={setSelectedFechas} />
                     <MultiSelectFilter label="Años" values={Array.from(new Set(listFechas.slice(1).map((f) => f.slice(0, 4))))} selected={selectedYears} onChange={setSelectedYears} />
-                    <MultiSelectFilter label="Meses" values={Array.from(new Set(listFechas.slice(1).map((f) => f.slice(5, 7)))).sort()} selected={selectedMonths} onChange={setSelectedMonths} />
-                    <MultiSelectFilter label="Días" values={Array.from(new Set(listFechas.slice(1).map((f) => f.slice(8, 10)))).sort()} selected={selectedDays} onChange={setSelectedDays} />
+                    <MultiSelectFilter label="Meses" values={Array.from(new Set<string>(listFechas.slice(1).map((f) => f.slice(5, 7)))).sort()} selected={selectedMonths} onChange={setSelectedMonths} />
+                    <MultiSelectFilter label="Días" values={Array.from(new Set<string>(listFechas.slice(1).map((f) => f.slice(8, 10)))).sort()} selected={selectedDays} onChange={setSelectedDays} />
                   </div>
 
                   <div className="flex items-center gap-2">
