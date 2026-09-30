@@ -326,7 +326,7 @@ export default function CaseDetailsPanel({
                   selectedIconColor: "text-rose-600",
                   selectedDot: "bg-rose-500 border-rose-500"
                 },
-                ...(selectedSabana === "mass" ? [{ 
+                { 
                   value: "ERROR CCTV", 
                   label: "Error CCTV", 
                   desc: "Dispositivo sin enlace de red, comunicación IP desvinculada o error CCTV.",
@@ -334,7 +334,7 @@ export default function CaseDetailsPanel({
                   selectedBg: "border-indigo-500 bg-indigo-50/40 text-indigo-950",
                   selectedIconColor: "text-indigo-600",
                   selectedDot: "bg-indigo-500 border-indigo-500"
-                }] : [])
+                }
               ].map((opt) => {
                 const isSelected = hallazgos === opt.value;
                 return (

@@ -52,9 +52,9 @@ function MultiSelectFilter({ label, values, selected, onChange }: {
 }
 
 // Instancia directa de Supabase en Frontend
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl || "", supabaseAnonKey || "");
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL || "https://dormcqnqebcvollbnkwg.supabase.co";
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRvcm1jcW5xZWJjdm9sbGJua3dnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NjkzMTUzNCwiZXhwIjoyMTAyNTA3NTM0fQ.bOQWKQYWx0Ct_KcNb98pVdGDoqssFCBu3q005uia2Rw";
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export function normalizeHallazgo(val: string | undefined): string {
   if (!val) return "";
@@ -111,9 +111,9 @@ export default function App() {
   const [currentUserFormato, setCurrentUserFormato] = useState<string>(() => {
     return localStorage.getItem("spsa_user_formato") || "";
   });
-  const [selectedSabana, setSelectedSabana] = useState<"mass" | "fdc" | null>(() => {
+  const [selectedSabana, setSelectedSabana] = useState<"mass" | "fdc" | "makro" | null>(() => {
     const saved = localStorage.getItem("spsa_selected_sabana");
-    return (saved === "mass" || saved === "fdc") ? saved : null;
+    return (saved === "mass" || saved === "fdc" || saved === "makro") ? saved : null;
   });
 
   const handleLoginSuccess = (user: string, name: string, role: string, formato: string) => {
@@ -229,16 +229,47 @@ const fetchData = async () => {
       const batchSize = 1000;
       let hasMore = true;
 
+      const targetTable = (selectedSabana === "fdc" || selectedSabana === "makro") ? "casos_fdc" : "casos_mass";
+
       while (hasMore) {
-        const { data, error } = await supabase
-          .from("casos_mass")
+        let query = supabase
+          .from(targetTable)
           .select("*")
           .order("fecha_deteccion", { ascending: false, nullsFirst: false })
           .order("boleta", { ascending: true })
           .range(from, from + batchSize - 1);
 
+        // Filtrar por formato según la sábana seleccionada
+        if (selectedSabana === "fdc") {
+          query = query.in("formato", ["PLAZA VEA", "VIVANDA"]);
+        } else if (selectedSabana === "makro") {
+          query = query.eq("formato", "MAKRO");
+        }
+
+        let { data, error } = await query;
+
+        if (error && targetTable === "casos_fdc") {
+          // Si la tabla casos_fdc aún no existe, fallback a casos_mass
+          let fallbackQuery = supabase
+            .from("casos_mass")
+            .select("*")
+            .order("fecha_deteccion", { ascending: false, nullsFirst: false })
+            .order("boleta", { ascending: true })
+            .range(from, from + batchSize - 1);
+
+          if (selectedSabana === "fdc") {
+            fallbackQuery = fallbackQuery.in("formato", ["PLAZA VEA", "VIVANDA"]);
+          } else if (selectedSabana === "makro") {
+            fallbackQuery = fallbackQuery.eq("formato", "MAKRO");
+          }
+
+          const fbRes = await fallbackQuery;
+          data = fbRes.data;
+          error = fbRes.error;
+        }
+
         if (error) {
-          console.error("Error al consultar Supabase casos_mass:", error.message);
+          console.error("Error al consultar Supabase:", error.message);
           break;
         }
 
@@ -293,7 +324,7 @@ const fetchData = async () => {
           "COMENTARIOS ERROR CSTV": r.comentarios_error_cstv || r.comentarios_erro || "",
           "CARGO REAL": r.cargo_real || "",
           "USUARIO": r.usuario || "",
-          "FORMATO": "MASS"
+          "FORMATO": r.formato || (selectedSabana === "mass" ? "MASS" : (selectedSabana === "makro" ? "MAKRO" : "CFR"))
         } as unknown as CaseRecord;
       });
 
@@ -372,8 +403,10 @@ const fetchData = async () => {
         ? Number(currentRecord?.["MONTO"] || 0)
         : null;
 
-      const { error } = await supabase
-        .from("casos_mass")
+      const targetTable = (selectedSabana === "fdc" || selectedSabana === "makro") ? "casos_fdc" : "casos_mass";
+
+      let { error } = await supabase
+        .from(targetTable)
         .update({
           hallazgos: hallazgos || null,
           comentarios: comentarios || null,
@@ -393,6 +426,32 @@ const fetchData = async () => {
           actualizado_en: new Date().toISOString()
         })
         .eq("boleta", boleta.trim());
+
+      if (error && targetTable === "casos_fdc") {
+        // Fallback a casos_mass si casos_fdc no existe aún
+        const fallback = await supabase
+          .from("casos_mass")
+          .update({
+            hallazgos: hallazgos || null,
+            comentarios: comentarios || null,
+            accion_disciplinaria: accDisciplinaria || null,
+            cargo_real: cargoReal || null,
+            carta_descuento: cartaDescuento ? Number(cartaDescuento) : null,
+            contribucion_total_estimada: contribucionTotalEstimada ? Number(contribucionTotalEstimada) : null,
+            contribucion_mensual: contribucionMensual,
+            comentarios_error_cstv: cstvDetail || null,
+            colaborador: colaborador || null,
+            dni: dni || null,
+            cargo: cargo || null,
+            seccion: seccion || null,
+            fecha_cierra: finalFechaCierre,
+            usuario: finalUsuario,
+            status_investigacion: hallazgos ? "CERRADO" : "ABIERTO",
+            actualizado_en: new Date().toISOString()
+          })
+          .eq("boleta", boleta.trim());
+        error = fallback.error;
+      }
 
       if (error) {
         console.error("Error al actualizar caso en Supabase:", error.message);
@@ -672,56 +731,93 @@ const fetchData = async () => {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl">
+            {/* Card 1: MASS */}
             <button
               onClick={() => {
                 setSelectedSabana("mass");
                 localStorage.setItem("spsa_selected_sabana", "mass");
               }}
-              className="bg-slate-950/40 hover:bg-slate-950/80 border border-white/10 hover:border-emerald-500/40 p-6 sm:p-8 rounded-3xl text-left transition-all duration-300 group cursor-pointer hover:shadow-[0_8px_30px_rgba(16,185,129,0.06)] flex flex-col justify-between min-h-[280px] relative overflow-hidden"
+              className="bg-slate-950/40 hover:bg-slate-950/80 border border-white/10 hover:border-emerald-500/40 p-6 sm:p-8 rounded-3xl text-left transition-all duration-300 group cursor-pointer hover:shadow-[0_8px_30px_rgba(16,185,129,0.06)] flex flex-col justify-between min-h-[260px] relative overflow-hidden"
             >
+              <div className="absolute top-0 right-0 w-28 h-28 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none group-hover:bg-emerald-500/10 transition-colors" />
               <div className="space-y-4">
                 <div className="inline-flex items-center justify-center bg-emerald-500/10 text-emerald-400 p-3.5 rounded-2xl border border-emerald-500/20 group-hover:scale-105 transition-transform duration-300">
                   <FileSpreadsheet className="w-6 h-6" />
                 </div>
                 <div className="space-y-2">
-                  <h3 className="text-lg font-bold text-white group-hover:text-emerald-400 transition-colors">
+                  <h3 className="text-base font-bold text-white group-hover:text-emerald-400 transition-colors">
                     Sábana de Investigación MASS
                   </h3>
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    Sábana de investigación principal para tiendas Mass. Registros de alertas y control operativo.
+                    Tiendas Mass ISEG. Registros de alertas y control operativo.
                   </p>
                 </div>
               </div>
-              
-              <div className="mt-8 pt-4 border-t border-white/5 w-full">
-                <div className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-[11px] font-bold text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10 border border-emerald-500/15 group-hover:border-emerald-500/30 transition-all uppercase tracking-wider font-mono">
+              <div className="mt-6 pt-4 border-t border-white/5 w-full">
+                <div className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-[11px] font-bold text-emerald-400 bg-emerald-500/5 border border-emerald-500/15 group-hover:border-emerald-500/30 transition-all uppercase tracking-wider font-mono">
                   <span>Ingresar a MASS</span>
                   <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </div>
               </div>
             </button>
 
+            {/* Card 2: CFR */}
             <button
-              className="bg-slate-950/40 border border-white/10 p-6 sm:p-8 rounded-3xl text-left cursor-default flex flex-col justify-between min-h-[280px] relative overflow-hidden opacity-70"
+              onClick={() => {
+                setSelectedSabana("fdc");
+                localStorage.setItem("spsa_selected_sabana", "fdc");
+              }}
+              className="bg-slate-950/40 hover:bg-slate-950/80 border border-white/10 hover:border-indigo-500/40 p-6 sm:p-8 rounded-3xl text-left transition-all duration-300 group cursor-pointer hover:shadow-[0_8px_30px_rgba(99,102,241,0.06)] flex flex-col justify-between min-h-[260px] relative overflow-hidden"
             >
+              <div className="absolute top-0 right-0 w-28 h-28 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none group-hover:bg-indigo-500/10 transition-colors" />
               <div className="space-y-4">
-                <div className="inline-flex items-center justify-center bg-indigo-500/10 text-indigo-400 p-3.5 rounded-2xl border border-indigo-500/20">
+                <div className="inline-flex items-center justify-center bg-indigo-500/10 text-indigo-400 p-3.5 rounded-2xl border border-indigo-500/20 group-hover:scale-105 transition-transform duration-300">
                   <ShieldCheck className="w-6 h-6" />
                 </div>
                 <div className="space-y-2">
-                  <h3 className="text-lg font-bold text-white">
+                  <h3 className="text-base font-bold text-white group-hover:text-indigo-400 transition-colors">
                     Sábana de Investigación CFR
                   </h3>
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    Sábana de investigación. Pendiente de configuración.
+                    Tiendas Plaza Vea y Vivanda. Gestión de incidentes CFR.
                   </p>
                 </div>
               </div>
-              
-              <div className="mt-8 pt-4 border-t border-white/5 w-full">
-                <div className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-[11px] font-bold text-slate-500 bg-slate-900 border border-slate-800 uppercase tracking-wider font-mono">
-                  <span>Próximamente</span>
+              <div className="mt-6 pt-4 border-t border-white/5 w-full">
+                <div className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-[11px] font-bold text-indigo-400 bg-indigo-500/5 border border-indigo-500/15 group-hover:border-indigo-500/30 transition-all uppercase tracking-wider font-mono">
+                  <span>Ingresar a CFR</span>
+                  <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </div>
+              </div>
+            </button>
+
+            {/* Card 3: MAKRO */}
+            <button
+              onClick={() => {
+                setSelectedSabana("makro");
+                localStorage.setItem("spsa_selected_sabana", "makro");
+              }}
+              className="bg-slate-950/40 hover:bg-slate-950/80 border border-white/10 hover:border-sky-500/40 p-6 sm:p-8 rounded-3xl text-left transition-all duration-300 group cursor-pointer hover:shadow-[0_8px_30px_rgba(14,165,233,0.06)] flex flex-col justify-between min-h-[260px] relative overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 w-28 h-28 bg-sky-500/5 rounded-full blur-2xl pointer-events-none group-hover:bg-sky-500/10 transition-colors" />
+              <div className="space-y-4">
+                <div className="inline-flex items-center justify-center bg-sky-500/10 text-sky-400 p-3.5 rounded-2xl border border-sky-500/20 group-hover:scale-105 transition-transform duration-300">
+                  <Database className="w-6 h-6" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-base font-bold text-white group-hover:text-sky-400 transition-colors">
+                    Sábana de Investigación MAKRO
+                  </h3>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Tiendas Makro. Seguimiento y gestión de incidentes MAKRO.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-6 pt-4 border-t border-white/5 w-full">
+                <div className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-[11px] font-bold text-sky-400 bg-sky-500/5 border border-sky-500/15 group-hover:border-sky-500/30 transition-all uppercase tracking-wider font-mono">
+                  <span>Ingresar a MAKRO</span>
+                  <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </div>
               </div>
             </button>
@@ -750,7 +846,11 @@ const fetchData = async () => {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-sm sm:text-base font-bold text-slate-950 tracking-tight uppercase font-mono">
-                  SÁBANA DE INVESTIGACIÓN MASS
+                  {selectedSabana === "fdc"
+                    ? "SÁBANA DE INVESTIGACIÓN CFR"
+                    : selectedSabana === "makro"
+                    ? "SÁBANA DE INVESTIGACIÓN MAKRO"
+                    : "SÁBANA DE INVESTIGACIÓN MASS"}
                 </h1>
               </div>
               <p className="text-xs text-slate-700 font-semibold mt-0.5">

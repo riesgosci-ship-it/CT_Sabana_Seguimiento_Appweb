@@ -8,11 +8,8 @@ let supabase: any = null;
 
 function getSupabase() {
   if (!supabase) {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-    if (!supabaseUrl || !supabaseAnonKey) {
-      throw new Error("Supabase URL and Anon Key are required. Please configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Settings.");
-    }
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://dormcqnqebcvollbnkwg.supabase.co";
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRvcm1jcW5xZWJjdm9sbGJua3dnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NjkzMTUzNCwiZXhwIjoyMTAyNTA3NTM0fQ.bOQWKQYWx0Ct_KcNb98pVdGDoqssFCBu3q005uia2Rw";
     supabase = createClient(supabaseUrl, supabaseAnonKey);
   }
   return supabase;
