@@ -336,6 +336,87 @@ app.post("/api/cases/update", async (req, res) => {
   }
 });
 
+app.post("/api/cases/create", async (req, res) => {
+  const { 
+    boleta, 
+    idTienda, 
+    tienda, 
+    formato, 
+    fechaDeteccion, 
+    alerta, 
+    importeAbordado, 
+    colaborador, 
+    dni, 
+    cargo, 
+    seccion, 
+    descripcion, 
+    hallazgos, 
+    cstvDetail, 
+    accDisciplinaria, 
+    cargoReal, 
+    cartaDescuento, 
+    contribucionTotalEstimada, 
+    comentarios, 
+    usuarioName, 
+    sabana 
+  } = req.body;
+
+  addLog(`Creando nueva alerta/caso para boleta: ${boleta}...`);
+  try {
+    const targetTable = (sabana === "fdc" || sabana === "makro") ? "casos_fdc" : "casos_mass";
+    const normHallazgo = normalizeHallazgo(hallazgos);
+    const isClosed = !!normHallazgo;
+    const montoNum = Number(importeAbordado || 0);
+
+    const payload: any = {
+      boleta: String(boleta).trim(),
+      carrion1: idTienda || null,
+      tienda: tienda || null,
+      fecha_deteccion: fechaDeteccion || getPeruDateString(),
+      fecha_cierra: isClosed ? getPeruDateString() : null,
+      formato: formato || (sabana === "makro" ? "MAKRO" : (sabana === "fdc" ? "PLAZA VEA" : "MASS")),
+      alerta: alerta || null,
+      importe_abordado_muestra: montoNum,
+      descripcion_evento: descripcion || null,
+      status_investigacion: isClosed ? "CERRADO" : "ABIERTO",
+      hallazgos: normHallazgo || null,
+      comentarios: comentarios || null,
+      colaborador: colaborador || null,
+      dni: dni ? String(dni).trim() : null,
+      cargo: cargo || null,
+      seccion: seccion || null,
+      carta_descuento: cartaDescuento !== "" && cartaDescuento !== undefined ? Number(cartaDescuento) : null,
+      contribucion_total_estimada: contribucionTotalEstimada !== "" && contribucionTotalEstimada !== undefined ? Number(contribucionTotalEstimada) : null,
+      contribucion_mensual: (normHallazgo === "HURTO" || normHallazgo === "ERROR OPERATIVO") ? montoNum : null,
+      accion_disciplinaria: accDisciplinaria || null,
+      cargo_real: cargoReal || null,
+      comentarios_error_cstv: cstvDetail || null,
+      usuario: usuarioName || null,
+      actualizado_en: new Date().toISOString()
+    };
+
+    let { error } = await getSupabase()
+      .from(targetTable)
+      .upsert([payload], { onConflict: "boleta" });
+
+    if (error && targetTable === "casos_fdc") {
+      const fb = await getSupabase().from("casos_mass").upsert([payload], { onConflict: "boleta" });
+      error = fb.error;
+    }
+
+    if (error) {
+      throw new Error(`Error de Supabase: ${error.message}`);
+    }
+
+    addLog(`Alerta/caso creado exitosamente para boleta: ${boleta}`);
+    res.json({ success: true });
+  } catch (error: any) {
+    addLog(`Error al crear caso en Supabase: ${error.message}`);
+    res.status(500).json({ success: false, error: `No se pudo crear el caso: ${error.message}` });
+  }
+});
+
+
 function getEncodedPath(rawPath: string): string {
   return rawPath.split('/').map(segment => encodeURIComponent(segment)).join('/');
 }

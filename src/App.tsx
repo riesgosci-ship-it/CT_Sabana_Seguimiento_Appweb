@@ -521,7 +521,121 @@ const fetchData = async () => {
   const handleCreateRecord = async (
     newRecordData: Partial<CaseRecord>
   ): Promise<{ success: boolean; error?: string }> => {
-    return { success: true };
+    try {
+      const cleanedBoleta = String(newRecordData["N° BOLETA"] || "").trim();
+      if (!cleanedBoleta) {
+        return { success: false, error: "El N° de Boleta / Identificador es obligatorio." };
+      }
+
+      const targetTable = (selectedSabana === "fdc" || selectedSabana === "makro") ? "casos_fdc" : "casos_mass";
+      const rawHallazgo = newRecordData["HALLAZGOS"] || "";
+      const normalizedHallazgo = normalizeHallazgo(rawHallazgo);
+      const isClosed = !!normalizedHallazgo;
+
+      const today = new Date();
+      const offset = -5 * 60;
+      const peruTime = new Date(today.getTime() + (today.getTimezoneOffset() + offset) * 60 * 1000);
+      const todayStr = `${peruTime.getFullYear()}-${String(peruTime.getMonth() + 1).padStart(2, '0')}-${String(peruTime.getDate()).padStart(2, '0')}`;
+
+      const finalFechaCierre = isClosed ? todayStr : null;
+      const finalUsuario = isClosed ? (currentUserName || currentUser || "Auditor") : null;
+      const montoNum = Number(newRecordData["ABORADO"] ?? newRecordData["MONTO"] ?? 0);
+
+      const contribucionMensual = (normalizedHallazgo === "HURTO" || normalizedHallazgo === "ERROR OPERATIVO")
+        ? montoNum
+        : null;
+
+      const formatoVal = newRecordData["FORMATO"] || (
+        selectedSabana === "makro" ? "MAKRO" : (selectedSabana === "fdc" ? "PLAZA VEA" : "MASS")
+      );
+
+      const payload: any = {
+        boleta: cleanedBoleta,
+        carrion1: newRecordData["ID TIENDA"] || newRecordData["CARRION 1"] || null,
+        tienda: newRecordData["TIENDA"] || null,
+        fecha_deteccion: newRecordData["FECHA DETECCIÓN"] || todayStr,
+        fecha_cierra: finalFechaCierre,
+        formato: formatoVal,
+        alerta: newRecordData["ALERTA"] || null,
+        importe_abordado_muestra: montoNum,
+        descripcion_evento: newRecordData["DESCRIPCIÓN DEL EVENTO"] || null,
+        status_investigacion: isClosed ? "CERRADO" : "ABIERTO",
+        hallazgos: normalizedHallazgo || null,
+        comentarios: newRecordData["Comentarios"] || null,
+        colaborador: newRecordData["COLABORADOR"] || null,
+        dni: newRecordData["DNI"] ? String(newRecordData["DNI"]).trim() : null,
+        cargo: newRecordData["CARGO"] || null,
+        seccion: newRecordData["SECCIÓN"] || null,
+        carta_descuento: newRecordData["CARTA DESCUENTO"] ? Number(newRecordData["CARTA DESCUENTO"]) : null,
+        contribucion_total_estimada: newRecordData["CONTRIBUCION TOTAL ESTIMADA"] ? Number(newRecordData["CONTRIBUCION TOTAL ESTIMADA"]) : null,
+        contribucion_mensual: contribucionMensual,
+        accion_disciplinaria: newRecordData["ACCIÓN DISCIPLINARIA"] || null,
+        cargo_real: newRecordData["CARGO REAL"] || null,
+        comentarios_error_cstv: newRecordData["COMENTARIOS ERROR CSTV"] || null,
+        usuario: finalUsuario,
+        actualizado_en: new Date().toISOString()
+      };
+
+      let { error } = await supabase
+        .from(targetTable)
+        .upsert([payload], { onConflict: "boleta" });
+
+      if (error && targetTable === "casos_fdc") {
+        // Fallback a casos_mass si casos_fdc no existe aún
+        const fb = await supabase.from("casos_mass").upsert([payload], { onConflict: "boleta" });
+        error = fb.error;
+      }
+
+      if (error) {
+        console.error("Error al registrar alerta en Supabase:", error.message);
+        return { success: false, error: error.message };
+      }
+
+      // Estructurar para memoria local y tabla
+      const newFormattedRecord: CaseRecord = {
+        _rowNum: 1,
+        "N° BOLETA": cleanedBoleta,
+        boleta: cleanedBoleta,
+        "CARRION 1": payload.carrion1 || "",
+        "TIENDA": payload.tienda || "",
+        "ID TIENDA": payload.carrion1 || "",
+        "FECHA DETECCIÓN": payload.fecha_deteccion || "",
+        "FECHA DE CIERRE": payload.fecha_cierra || "",
+        "FECHA DE CIERRA": payload.fecha_cierra || "",
+        "ALERTA": payload.alerta || "",
+        "CANTIDAD ALERTA": Number(newRecordData["CANTIDAD ALERTA"] || 1),
+        "ABORADO": montoNum,
+        "MONTO": montoNum,
+        "DESCRIPCIÓN DEL EVENTO": payload.descripcion_evento || "",
+        "STATUS INVESTIGACIÓN": payload.status_investigacion,
+        "HALLAZGOS": normalizedHallazgo,
+        "Comentarios": payload.comentarios || "",
+        "COLABORADOR": payload.colaborador || "",
+        "DNI": payload.dni || "",
+        "CARGO": payload.cargo || "",
+        "SECCIÓN": payload.seccion || "",
+        "CARTA DESCUENTO": payload.carta_descuento ?? "",
+        "CONTRIBUCION TOTAL ESTIMADA": payload.contribucion_total_estimada ?? "",
+        "CONTRIBUCION MENSUAL": payload.contribucion_mensual ?? "",
+        "ACCIÓN DISCIPLINARIA": payload.accion_disciplinaria || "",
+        "COMENTARIOS ERROR CSTV": payload.comentarios_error_cstv || "",
+        "CARGO REAL": payload.cargo_real || "",
+        "USUARIO": payload.usuario || "",
+        "FORMATO": payload.formato
+      } as unknown as CaseRecord;
+
+      setRawRecords((prev) => [
+        newFormattedRecord,
+        ...prev.filter((r) => String(r["N° BOLETA"]).trim() !== cleanedBoleta)
+      ]);
+
+      setSelectedRecord(newFormattedRecord);
+
+      return { success: true };
+    } catch (err: any) {
+      console.error("Error al registrar alerta:", err);
+      return { success: false, error: err.message || "Error al conectar con la base de datos." };
+    }
   };
 
   const handleBatchSync = async () => {};
@@ -910,6 +1024,20 @@ const fetchData = async () => {
                 </button>
               </div>
             )}
+
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold text-white shadow-sm transition-all cursor-pointer ${
+                selectedSabana === "fdc"
+                  ? "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/20"
+                  : selectedSabana === "makro"
+                  ? "bg-sky-600 hover:bg-sky-700 shadow-sky-600/20"
+                  : "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20"
+              }`}
+            >
+              <Plus className="w-4 h-4 shrink-0" />
+              <span>+ Nueva Alerta Manual</span>
+            </button>
 
             <button
               onClick={handleManualSync}
@@ -1482,6 +1610,7 @@ const fetchData = async () => {
         onClose={() => setIsAddModalOpen(false)}
         onSave={handleCreateRecord}
         existingRecords={records}
+        selectedSabana={selectedSabana}
       />
 
     </div>
