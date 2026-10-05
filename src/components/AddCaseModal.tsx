@@ -13,7 +13,8 @@ import {
   Loader2,
   Calendar,
   Layers,
-  Sparkles
+  Sparkles,
+  ArrowRight
 } from "lucide-react";
 import { CaseRecord } from "../types";
 
@@ -23,6 +24,7 @@ interface AddCaseModalProps {
   onSave: (newRecordData: Partial<CaseRecord>) => Promise<{ success: boolean; error?: string }>;
   existingRecords: CaseRecord[];
   selectedSabana?: "mass" | "fdc" | "makro" | null;
+  onOpenBulkUpload?: () => void;
 }
 
 // Helper to get Peru timezone today's date in YYYY-MM-DD
@@ -40,7 +42,7 @@ function getPeruToday(): string {
   }
 }
 
-export function AddCaseModal({ isOpen, onClose, onSave, existingRecords, selectedSabana }: AddCaseModalProps) {
+export function AddCaseModal({ isOpen, onClose, onSave, existingRecords, selectedSabana, onOpenBulkUpload }: AddCaseModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -268,6 +270,35 @@ export function AddCaseModal({ isOpen, onClose, onSave, existingRecords, selecte
             <div className="flex items-start gap-2.5 p-4 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl text-xs animate-in slide-in-from-top-2 duration-150">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
               <span className="font-semibold">{errorMsg}</span>
+            </div>
+          )}
+
+          {onOpenBulkUpload && (
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3.5 bg-emerald-50/60 border border-emerald-200/80 rounded-2xl gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-emerald-100 text-emerald-700 shrink-0">
+                  <FileSpreadsheet className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-800">
+                    ¿Deseas registrar múltiples alertas a la vez?
+                  </p>
+                  <p className="text-[10.5px] text-slate-500">
+                    Descarga el formato Excel (.xlsx) y sube todos tus registros de forma masiva.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenBulkUpload();
+                }}
+                className="w-full sm:w-auto px-3.5 py-1.5 text-xs font-bold bg-white text-emerald-800 border border-emerald-300 rounded-xl hover:bg-emerald-50 transition-all cursor-pointer shadow-xs shrink-0 flex items-center justify-center gap-1.5"
+              >
+                <span>Carga Masiva Excel</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
             </div>
           )}
 

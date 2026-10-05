@@ -4,13 +4,15 @@ import CaseDetailsPanel from "./components/CaseDetailsPanel";
 import DiagnosticsModal from "./components/DiagnosticsModal";
 import { LoginScreen } from "./components/LoginScreen";
 import { AddCaseModal } from "./components/AddCaseModal";
+import { BulkUploadModal } from "./components/BulkUploadModal";
+import { ParsedAlertResult } from "./utils/excelAlerts";
 import { createClient } from "@supabase/supabase-js";
 import { 
   FileSpreadsheet, RefreshCw, Search, Filter, ShieldCheck, 
   AlertTriangle, Database, LayoutGrid, CheckCircle, 
   HelpCircle, UserX, TrendingUp, AlertOctagon,
   ChevronRight, ArrowUpDown, ChevronLeft, ChevronsLeft, ChevronsRight,
-  LogOut, User, Plus, CloudUpload
+  LogOut, User, Plus, CloudUpload, CheckCircle2, X
 } from "lucide-react";
 
 function MultiSelectFilter({ label, values, selected, onChange }: {
@@ -207,6 +209,8 @@ export default function App() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [bulkUploadNotification, setBulkUploadNotification] = useState<{ count: number; message: string } | null>(null);
   
   // Sort state
   const [sortField, setSortField] = useState<keyof CaseRecord | "">("");
@@ -638,6 +642,67 @@ const fetchData = async () => {
     }
   };
 
+  const handleBulkSave = async (
+    parsedResults: ParsedAlertResult[]
+  ): Promise<{ success: boolean; count?: number; error?: string }> => {
+    try {
+      if (!parsedResults || parsedResults.length === 0) {
+        return { success: false, error: "No se encontraron registros para cargar." };
+      }
+
+      const targetTable = (selectedSabana === "fdc" || selectedSabana === "makro") ? "casos_fdc" : "casos_mass";
+      const payloads = parsedResults.map((p) => p.payload);
+
+      // Upsert por lotes de 50 para máxima velocidad y fiabilidad en red
+      const batchSize = 50;
+      for (let i = 0; i < payloads.length; i += batchSize) {
+        const batch = payloads.slice(i, i + batchSize);
+        let { error } = await supabase
+          .from(targetTable)
+          .upsert(batch, { onConflict: "boleta" });
+
+        if (error && targetTable === "casos_fdc") {
+          // Fallback a casos_mass si casos_fdc aún no existe
+          const fb = await supabase.from("casos_mass").upsert(batch, { onConflict: "boleta" });
+          error = fb.error;
+        }
+
+        if (error) {
+          console.error("Error al registrar lote en Supabase:", error.message);
+          return { success: false, error: `Error en base de datos: ${error.message}` };
+        }
+      }
+
+      // Estructurar registros para memoria local inmediatamente
+      const newRecords = parsedResults.map((p) => p.record);
+      const newBoletas = new Set(newRecords.map((nr) => String(nr["N° BOLETA"]).trim()));
+
+      setRawRecords((prev) => {
+        const filtered = prev.filter((r) => !newBoletas.has(String(r["N° BOLETA"]).trim()));
+        return [...newRecords, ...filtered];
+      });
+
+      setCurrentPage(1);
+      if (newRecords.length > 0) {
+        setSelectedRecord(newRecords[0]);
+      }
+
+      setBulkUploadNotification({
+        count: newRecords.length,
+        message: `¡Se cargaron y añadieron exitosamente ${newRecords.length} alertas manuales!`
+      });
+
+      setTimeout(() => {
+        setBulkUploadNotification(null);
+      }, 9000);
+
+      return { success: true, count: newRecords.length };
+    } catch (err: any) {
+      console.error("Error en handleBulkSave:", err);
+      return { success: false, error: err.message || "Error al conectar con la base de datos." };
+    }
+  };
+
   const handleBatchSync = async () => {};
 
   // Filtros dinámicos
@@ -1025,6 +1090,16 @@ const fetchData = async () => {
               </div>
             )}
 
+            {/* Botón Carga Masiva (.xlsx) */}
+            <button
+              onClick={() => setIsBulkModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold text-slate-800 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all cursor-pointer shadow-xs"
+              title="Carga masiva de alertas mediante plantilla Excel (.xlsx)"
+            >
+              <FileSpreadsheet className="w-4 h-4 shrink-0 text-emerald-600" />
+              <span>Carga Masiva Excel</span>
+            </button>
+
             <button
               onClick={() => setIsAddModalOpen(true)}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold text-white shadow-sm transition-all cursor-pointer ${
@@ -1051,6 +1126,34 @@ const fetchData = async () => {
 
         </div>
       </header>
+
+      {/* Banner de Notificación de Carga Masiva */}
+      {bulkUploadNotification && (
+        <div className="max-w-[1700px] w-full mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 pt-4">
+          <div className="flex items-center justify-between p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-900 shadow-xs animate-in slide-in-from-top-2 duration-200">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-emerald-100 text-emerald-700 rounded-xl shrink-0">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-xs font-bold font-mono text-emerald-950">
+                  {bulkUploadNotification.message}
+                </p>
+                <p className="text-[11px] text-emerald-700 mt-0.5">
+                  Las alertas han sido añadidas al inicio del listado y guardadas en la base de datos.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setBulkUploadNotification(null)}
+              className="p-1.5 hover:bg-emerald-100 text-emerald-700 rounded-xl cursor-pointer transition-colors"
+              title="Cerrar notificación"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <main className="flex-1 max-w-[1700px] w-full mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-6 space-y-6">
@@ -1611,6 +1714,16 @@ const fetchData = async () => {
         onSave={handleCreateRecord}
         existingRecords={records}
         selectedSabana={selectedSabana}
+        onOpenBulkUpload={() => setIsBulkModalOpen(true)}
+      />
+
+      <BulkUploadModal
+        isOpen={isBulkModalOpen}
+        onClose={() => setIsBulkModalOpen(false)}
+        onBulkSave={handleBulkSave}
+        existingRecords={records}
+        selectedSabana={selectedSabana}
+        currentUserName={currentUserName || currentUser || "Auditor"}
       />
 
     </div>

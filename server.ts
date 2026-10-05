@@ -416,6 +416,41 @@ app.post("/api/cases/create", async (req, res) => {
   }
 });
 
+app.post("/api/cases/bulk-create", async (req, res) => {
+  const { cases, sabana } = req.body;
+  addLog(`Creando lote de ${cases?.length || 0} alertas para sábana: ${sabana}...`);
+  try {
+    if (!Array.isArray(cases) || cases.length === 0) {
+      return res.status(400).json({ success: false, error: "No se proporcionaron registros para cargar." });
+    }
+
+    const targetTable = (sabana === "fdc" || sabana === "makro") ? "casos_fdc" : "casos_mass";
+
+    const batchSize = 100;
+    for (let i = 0; i < cases.length; i += batchSize) {
+      const batch = cases.slice(i, i + batchSize);
+      let { error } = await getSupabase()
+        .from(targetTable)
+        .upsert(batch, { onConflict: "boleta" });
+
+      if (error && targetTable === "casos_fdc") {
+        const fb = await getSupabase().from("casos_mass").upsert(batch, { onConflict: "boleta" });
+        error = fb.error;
+      }
+
+      if (error) {
+        throw new Error(`Error de Supabase: ${error.message}`);
+      }
+    }
+
+    addLog(`Lote de ${cases.length} alertas guardado exitosamente.`);
+    res.json({ success: true, count: cases.length });
+  } catch (error: any) {
+    addLog(`Error al guardar lote en Supabase: ${error.message}`);
+    res.status(500).json({ success: false, error: `No se pudo registrar el lote: ${error.message}` });
+  }
+});
+
 
 function getEncodedPath(rawPath: string): string {
   return rawPath.split('/').map(segment => encodeURIComponent(segment)).join('/');
