@@ -252,25 +252,7 @@ const fetchData = async () => {
 
         let { data, error } = await query;
 
-        if (error && targetTable === "casos_fdc") {
-          // Si la tabla casos_fdc aún no existe, fallback a casos_mass
-          let fallbackQuery = supabase
-            .from("casos_mass")
-            .select("*")
-            .order("fecha_deteccion", { ascending: false, nullsFirst: false })
-            .order("boleta", { ascending: true })
-            .range(from, from + batchSize - 1);
 
-          if (selectedSabana === "fdc") {
-            fallbackQuery = fallbackQuery.in("formato", ["PLAZA VEA", "VIVANDA"]);
-          } else if (selectedSabana === "makro") {
-            fallbackQuery = fallbackQuery.eq("formato", "MAKRO");
-          }
-
-          const fbRes = await fallbackQuery;
-          data = fbRes.data;
-          error = fbRes.error;
-        }
 
         if (error) {
           console.error("Error al consultar Supabase:", error.message);
@@ -409,53 +391,32 @@ const fetchData = async () => {
 
       const targetTable = (selectedSabana === "fdc" || selectedSabana === "makro") ? "casos_fdc" : "casos_mass";
 
-      let { error } = await supabase
-        .from(targetTable)
-        .update({
-          hallazgos: hallazgos || null,
-          comentarios: comentarios || null,
-          accion_disciplinaria: accDisciplinaria || null,
-          cargo_real: cargoReal || null,
-          carta_descuento: cartaDescuento ? Number(cartaDescuento) : null,
-          contribucion_total_estimada: contribucionTotalEstimada ? Number(contribucionTotalEstimada) : null,
-          contribucion_mensual: contribucionMensual,
-          comentarios_error_cstv: cstvDetail || null,
-          colaborador: colaborador || null,
-          dni: dni || null,
-          cargo: cargo || null,
-          seccion: seccion || null,
-          fecha_cierra: finalFechaCierre,
-          usuario: finalUsuario,
-          status_investigacion: hallazgos ? "CERRADO" : "ABIERTO",
-          actualizado_en: new Date().toISOString()
-        })
-        .eq("boleta", boleta.trim());
+      const updateData: any = {
+        hallazgos: hallazgos || null,
+        comentarios: comentarios || null,
+        accion_disciplinaria: accDisciplinaria || null,
+        carta_descuento: cartaDescuento ? Number(cartaDescuento) : null,
+        contribucion_total_estimada: contribucionTotalEstimada ? Number(contribucionTotalEstimada) : null,
+        colaborador: colaborador || null,
+        dni: dni || null,
+        cargo: cargo || null,
+        seccion: seccion || null,
+        fecha_cierra: finalFechaCierre,
+        usuario: finalUsuario,
+        status_investigacion: hallazgos ? "CERRADO" : "ABIERTO",
+        actualizado_en: new Date().toISOString()
+      };
 
-      if (error && targetTable === "casos_fdc") {
-        // Fallback a casos_mass si casos_fdc no existe aún
-        const fallback = await supabase
-          .from("casos_mass")
-          .update({
-            hallazgos: hallazgos || null,
-            comentarios: comentarios || null,
-            accion_disciplinaria: accDisciplinaria || null,
-            cargo_real: cargoReal || null,
-            carta_descuento: cartaDescuento ? Number(cartaDescuento) : null,
-            contribucion_total_estimada: contribucionTotalEstimada ? Number(contribucionTotalEstimada) : null,
-            contribucion_mensual: contribucionMensual,
-            comentarios_error_cstv: cstvDetail || null,
-            colaborador: colaborador || null,
-            dni: dni || null,
-            cargo: cargo || null,
-            seccion: seccion || null,
-            fecha_cierra: finalFechaCierre,
-            usuario: finalUsuario,
-            status_investigacion: hallazgos ? "CERRADO" : "ABIERTO",
-            actualizado_en: new Date().toISOString()
-          })
-          .eq("boleta", boleta.trim());
-        error = fallback.error;
+      if (targetTable === "casos_mass") {
+        updateData.cargo_real = cargoReal || null;
+        updateData.contribucion_mensual = contribucionMensual;
+        updateData.comentarios_error_cstv = cstvDetail || null;
       }
+
+      const { error } = await supabase
+        .from(targetTable)
+        .update(updateData)
+        .eq("boleta", boleta.trim());
 
       if (error) {
         console.error("Error al actualizar caso en Supabase:", error.message);
@@ -559,7 +520,6 @@ const fetchData = async () => {
         tienda: newRecordData["TIENDA"] || null,
         fecha_deteccion: newRecordData["FECHA DETECCIÓN"] || todayStr,
         fecha_cierra: finalFechaCierre,
-        formato: formatoVal,
         alerta: newRecordData["ALERTA"] || null,
         importe_abordado_muestra: montoNum,
         descripcion_evento: newRecordData["DESCRIPCIÓN DEL EVENTO"] || null,
@@ -572,23 +532,22 @@ const fetchData = async () => {
         seccion: newRecordData["SECCIÓN"] || null,
         carta_descuento: newRecordData["CARTA DESCUENTO"] ? Number(newRecordData["CARTA DESCUENTO"]) : null,
         contribucion_total_estimada: newRecordData["CONTRIBUCION TOTAL ESTIMADA"] ? Number(newRecordData["CONTRIBUCION TOTAL ESTIMADA"]) : null,
-        contribucion_mensual: contribucionMensual,
         accion_disciplinaria: newRecordData["ACCIÓN DISCIPLINARIA"] || null,
-        cargo_real: newRecordData["CARGO REAL"] || null,
-        comentarios_error_cstv: newRecordData["COMENTARIOS ERROR CSTV"] || null,
         usuario: finalUsuario,
         actualizado_en: new Date().toISOString()
       };
 
-      let { error } = await supabase
+      if (targetTable === "casos_fdc") {
+        payload.formato = formatoVal;
+      } else {
+        payload.cargo_real = newRecordData["CARGO REAL"] || null;
+        payload.comentarios_error_cstv = newRecordData["COMENTARIOS ERROR CSTV"] || null;
+        payload.contribucion_mensual = contribucionMensual;
+      }
+
+      const { error } = await supabase
         .from(targetTable)
         .upsert([payload], { onConflict: "boleta" });
-
-      if (error && targetTable === "casos_fdc") {
-        // Fallback a casos_mass si casos_fdc no existe aún
-        const fb = await supabase.from("casos_mass").upsert([payload], { onConflict: "boleta" });
-        error = fb.error;
-      }
 
       if (error) {
         console.error("Error al registrar alerta en Supabase:", error.message);
@@ -651,25 +610,30 @@ const fetchData = async () => {
       }
 
       const targetTable = (selectedSabana === "fdc" || selectedSabana === "makro") ? "casos_fdc" : "casos_mass";
-      const payloads = parsedResults.map((p) => p.payload);
+      const payloads = parsedResults.map((p) => {
+        const item = { ...p.payload };
+        // Asegurar que las columnas coincidan al 100% con la tabla de destino
+        if (targetTable === "casos_fdc") {
+          delete item.cargo_real;
+          delete item.comentarios_error_cstv;
+          delete item.contribucion_mensual;
+        } else {
+          delete item.formato;
+        }
+        return item;
+      });
 
       // Upsert por lotes de 50 para máxima velocidad y fiabilidad en red
       const batchSize = 50;
       for (let i = 0; i < payloads.length; i += batchSize) {
         const batch = payloads.slice(i, i + batchSize);
-        let { error } = await supabase
+        const { error } = await supabase
           .from(targetTable)
           .upsert(batch, { onConflict: "boleta" });
 
-        if (error && targetTable === "casos_fdc") {
-          // Fallback a casos_mass si casos_fdc aún no existe
-          const fb = await supabase.from("casos_mass").upsert(batch, { onConflict: "boleta" });
-          error = fb.error;
-        }
-
         if (error) {
           console.error("Error al registrar lote en Supabase:", error.message);
-          return { success: false, error: `Error en base de datos: ${error.message}` };
+          return { success: false, error: `Error en base de datos (${targetTable}): ${error.message}` };
         }
       }
 

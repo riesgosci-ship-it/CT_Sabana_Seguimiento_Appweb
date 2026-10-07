@@ -220,75 +220,137 @@ export function downloadAlertsTemplate(
   }
 
   // Pre-fill columns matching sábana & AddCaseModal
-  const templateRows = [
-    {
-      "N° BOLETA": "BK92-00123456",
-      "FECHA DETECCIÓN": today,
-      "TIENDA": sampleTienda,
-      "ID TIENDA": sampleIdTienda,
-      "FORMATO": defaultFormato,
-      "ALERTA": defaultAlerta,
-      "CANTIDAD ALERTA": 1,
-      "IMPORTE ABORDADO": 45.50,
-      "COLABORADOR": "GARCIA PEREZ JUAN CARLOS",
-      "DNI": "74829102",
-      "CARGO": "CAJERO",
-      "SECCIÓN": "CAJAS",
-      "DESCRIPCIÓN DEL EVENTO": "Anulación o borrado de línea sin sustento operativo.",
-      "HALLAZGOS": "PENDIENTE",
-      "ACCIÓN DISCIPLINARIA": "Ninguna",
-      "CARGO REAL": "Administrador",
-      "CARTA DESCUENTO": "",
-      "CONTRIBUCION TOTAL ESTIMADA": "",
-      "COMENTARIOS": "Caso ingresado para revisión de cámaras."
-    },
-    {
-      "N° BOLETA": "BK92-00123457",
-      "FECHA DETECCIÓN": today,
-      "TIENDA": sampleTienda,
-      "ID TIENDA": sampleIdTienda,
-      "FORMATO": defaultFormato,
-      "ALERTA": defaultAlerta,
-      "CANTIDAD ALERTA": 1,
-      "IMPORTE ABORDADO": 120.00,
-      "COLABORADOR": "MENDOZA FLORES ANA",
-      "DNI": "45981234",
-      "CARGO": "OPERADOR DE TIENDA",
-      "SECCIÓN": "CAJAS",
-      "DESCRIPCIÓN DEL EVENTO": "Diferencia de caja detectada en arqueo.",
-      "HALLAZGOS": "ERROR OPERATIVO",
-      "ACCIÓN DISCIPLINARIA": "Suspendido/amonestado",
-      "CARGO REAL": "Operador",
-      "CARTA DESCUENTO": 50.00,
-      "CONTRIBUCION TOTAL ESTIMADA": 120.00,
-      "COMENTARIOS": "Colaborador reconoce error involuntario."
-    }
-  ];
+  const isFdcOrMakro = selectedSabana === "fdc" || selectedSabana === "makro";
+  const templateRows = isFdcOrMakro
+    ? [
+        {
+          "N° BOLETA": "BK92-00123456",
+          "FECHA DETECCIÓN": today,
+          "TIENDA": sampleTienda,
+          "ID TIENDA": sampleIdTienda,
+          "FORMATO": defaultFormato,
+          "ALERTA": defaultAlerta,
+          "CANTIDAD ALERTA": 1,
+          "IMPORTE ABORDADO": 45.50,
+          "COLABORADOR": "GARCIA PEREZ JUAN CARLOS",
+          "DNI": "74829102",
+          "CARGO": "CAJERO",
+          "SECCIÓN": "CAJAS",
+          "DESCRIPCIÓN DEL EVENTO": "Anulación o borrado de línea sin sustento operativo.",
+          "HALLAZGOS": "PENDIENTE",
+          "ACCIÓN DISCIPLINARIA": "Ninguna",
+          "CARTA DESCUENTO": "",
+          "CONTRIBUCION TOTAL ESTIMADA": "",
+          "COMENTARIOS": "Caso ingresado para revisión de cámaras."
+        },
+        {
+          "N° BOLETA": "BK92-00123457",
+          "FECHA DETECCIÓN": today,
+          "TIENDA": sampleTienda,
+          "ID TIENDA": sampleIdTienda,
+          "FORMATO": defaultFormato,
+          "ALERTA": defaultAlerta,
+          "CANTIDAD ALERTA": 1,
+          "IMPORTE ABORDADO": 120.00,
+          "COLABORADOR": "MENDOZA FLORES ANA",
+          "DNI": "45981234",
+          "CARGO": "OPERADOR DE TIENDA",
+          "SECCIÓN": "CAJAS",
+          "DESCRIPCIÓN DEL EVENTO": "Diferencia de caja detectada en arqueo.",
+          "HALLAZGOS": "ERROR OPERATIVO",
+          "ACCIÓN DISCIPLINARIA": "Suspendido/amonestado",
+          "CARTA DESCUENTO": 50.00,
+          "CONTRIBUCION TOTAL ESTIMADA": 120.00,
+          "COMENTARIOS": "Colaborador reconoce error involuntario."
+        }
+      ]
+    : [
+        {
+          "N° BOLETA": "BK92-00123456",
+          "FECHA DETECCIÓN": today,
+          "TIENDA": sampleTienda,
+          "ID TIENDA": sampleIdTienda,
+          "ALERTA": defaultAlerta,
+          "CANTIDAD ALERTA": 1,
+          "IMPORTE ABORDADO": 45.50,
+          "COLABORADOR": "GARCIA PEREZ JUAN CARLOS",
+          "DNI": "74829102",
+          "CARGO": "CAJERO",
+          "SECCIÓN": "CAJAS",
+          "DESCRIPCIÓN DEL EVENTO": "Anulación o borrado de línea sin sustento operativo.",
+          "HALLAZGOS": "PENDIENTE",
+          "ACCIÓN DISCIPLINARIA": "Ninguna",
+          "CARGO REAL": "Administrador",
+          "CARTA DESCUENTO": "",
+          "CONTRIBUCION TOTAL ESTIMADA": "",
+          "COMENTARIOS": "Caso ingresado para revisión de cámaras."
+        },
+        {
+          "N° BOLETA": "BK92-00123457",
+          "FECHA DETECCIÓN": today,
+          "TIENDA": sampleTienda,
+          "ID TIENDA": sampleIdTienda,
+          "ALERTA": defaultAlerta,
+          "CANTIDAD ALERTA": 1,
+          "IMPORTE ABORDADO": 120.00,
+          "COLABORADOR": "MENDOZA FLORES ANA",
+          "DNI": "45981234",
+          "CARGO": "OPERADOR DE TIENDA",
+          "SECCIÓN": "CAJAS",
+          "DESCRIPCIÓN DEL EVENTO": "Diferencia de caja detectada en arqueo.",
+          "HALLAZGOS": "ERROR OPERATIVO",
+          "ACCIÓN DISCIPLINARIA": "Suspendido/amonestado",
+          "CARGO REAL": "Operador",
+          "CARTA DESCUENTO": 50.00,
+          "CONTRIBUCION TOTAL ESTIMADA": 120.00,
+          "COMENTARIOS": "Colaborador reconoce error involuntario."
+        }
+      ];
 
   const ws = XLSX.utils.json_to_sheet(templateRows);
 
   // Set optimal column widths
-  ws["!cols"] = [
-    { wch: 18 }, // N° BOLETA
-    { wch: 16 }, // FECHA DETECCIÓN
-    { wch: 25 }, // TIENDA
-    { wch: 12 }, // ID TIENDA
-    { wch: 14 }, // FORMATO
-    { wch: 25 }, // ALERTA
-    { wch: 16 }, // CANTIDAD ALERTA
-    { wch: 18 }, // IMPORTE ABORDADO
-    { wch: 30 }, // COLABORADOR
-    { wch: 14 }, // DNI
-    { wch: 20 }, // CARGO
-    { wch: 16 }, // SECCIÓN
-    { wch: 45 }, // DESCRIPCIÓN DEL EVENTO
-    { wch: 18 }, // HALLAZGOS
-    { wch: 22 }, // ACCIÓN DISCIPLINARIA
-    { wch: 16 }, // CARGO REAL
-    { wch: 18 }, // CARTA DESCUENTO
-    { wch: 26 }, // CONTRIBUCION TOTAL ESTIMADA
-    { wch: 40 }, // COMENTARIOS
-  ];
+  ws["!cols"] = isFdcOrMakro
+    ? [
+        { wch: 18 }, // N° BOLETA
+        { wch: 16 }, // FECHA DETECCIÓN
+        { wch: 25 }, // TIENDA
+        { wch: 12 }, // ID TIENDA
+        { wch: 14 }, // FORMATO
+        { wch: 25 }, // ALERTA
+        { wch: 16 }, // CANTIDAD ALERTA
+        { wch: 18 }, // IMPORTE ABORDADO
+        { wch: 30 }, // COLABORADOR
+        { wch: 14 }, // DNI
+        { wch: 20 }, // CARGO
+        { wch: 16 }, // SECCIÓN
+        { wch: 45 }, // DESCRIPCIÓN DEL EVENTO
+        { wch: 18 }, // HALLAZGOS
+        { wch: 22 }, // ACCIÓN DISCIPLINARIA
+        { wch: 18 }, // CARTA DESCUENTO
+        { wch: 26 }, // CONTRIBUCION TOTAL ESTIMADA
+        { wch: 40 }, // COMENTARIOS
+      ]
+    : [
+        { wch: 18 }, // N° BOLETA
+        { wch: 16 }, // FECHA DETECCIÓN
+        { wch: 25 }, // TIENDA
+        { wch: 12 }, // ID TIENDA
+        { wch: 25 }, // ALERTA
+        { wch: 16 }, // CANTIDAD ALERTA
+        { wch: 18 }, // IMPORTE ABORDADO
+        { wch: 30 }, // COLABORADOR
+        { wch: 14 }, // DNI
+        { wch: 20 }, // CARGO
+        { wch: 16 }, // SECCIÓN
+        { wch: 45 }, // DESCRIPCIÓN DEL EVENTO
+        { wch: 18 }, // HALLAZGOS
+        { wch: 22 }, // ACCIÓN DISCIPLINARIA
+        { wch: 16 }, // CARGO REAL
+        { wch: 18 }, // CARTA DESCUENTO
+        { wch: 26 }, // CONTRIBUCION TOTAL ESTIMADA
+        { wch: 40 }, // COMENTARIOS
+      ];
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Alertas Manuales");
@@ -455,14 +517,14 @@ export async function parseAlertsExcelFile(
     const finalUsuario = isClosed ? (currentUserName || "Auditor") : null;
     const contribucionMensual = (normHallazgo === "HURTO" || normHallazgo === "ERROR OPERATIVO") ? monto : null;
 
-    // Database payload
+    // Database payload adaptado estrictamente al esquema de la tabla de destino
+    const isTargetFdc = selectedSabana === "fdc" || selectedSabana === "makro";
     const payload: any = {
       boleta: rawBoleta,
       carrion1: rawIdTienda || null,
       tienda: rawTienda || null,
       fecha_deteccion: fechaDeteccion || todayStr,
       fecha_cierra: finalFechaCierre,
-      formato: formato,
       alerta: alerta,
       importe_abordado_muestra: monto,
       descripcion_evento: descripcion || null,
@@ -475,13 +537,18 @@ export async function parseAlertsExcelFile(
       seccion: seccion || null,
       carta_descuento: cartaDescuento !== undefined ? cartaDescuento : null,
       contribucion_total_estimada: contribucionTotal !== undefined ? contribucionTotal : null,
-      contribucion_mensual: contribucionMensual,
       accion_disciplinaria: accionDisciplinaria || null,
-      cargo_real: cargoReal || null,
-      comentarios_error_cstv: cstvDetail || null,
       usuario: finalUsuario,
       actualizado_en: new Date().toISOString()
     };
+
+    if (isTargetFdc) {
+      payload.formato = formato;
+    } else {
+      payload.cargo_real = cargoReal || null;
+      payload.comentarios_error_cstv = cstvDetail || null;
+      payload.contribucion_mensual = contribucionMensual;
+    }
 
     // Client memory model
     const record: CaseRecord = {

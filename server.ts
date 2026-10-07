@@ -309,19 +309,25 @@ app.post("/api/cases/update", async (req, res) => {
   const { rowNum, boleta, hallazgos, comentarios, accDisciplinaria, cargoReal, cartaDescuento, contribucionTotalEstimada, cstvDetail, usuarioName, sabana } = req.body;
   addLog(`Actualizando caso para boleta: ${boleta}...`);
   try {
+    const targetTable = (sabana === "fdc" || sabana === "makro") ? "casos_fdc" : "casos_mass";
+    const updateData: any = {
+      hallazgos: hallazgos || null,
+      comentarios: comentarios || null,
+      accion_disciplinaria: accDisciplinaria || null,
+      carta_descuento: cartaDescuento === "" ? null : cartaDescuento,
+      contribucion_total_estimada: contribucionTotalEstimada === "" ? null : contribucionTotalEstimada,
+      fecha_cierra: hallazgos ? getPeruDateString() : null,
+      usuario: usuarioName || null
+    };
+
+    if (targetTable === "casos_mass") {
+      updateData.cargo_real = cargoReal || null;
+      updateData.comentarios_error_cstv = cstvDetail || null;
+    }
+
     const { error } = await getSupabase()
-      .from("casos_mass")
-      .update({
-        hallazgos,
-        comentarios,
-        accion_disciplinaria: accDisciplinaria,
-        cargo_real: cargoReal,
-        carta_descuento: cartaDescuento === "" ? null : cartaDescuento,
-        contribucion_total_estimada: contribucionTotalEstimada === "" ? null : contribucionTotalEstimada,
-        comentarios_error_cstv: cstvDetail,
-        fecha_cierra: hallazgos ? getPeruDateString() : null,
-        usuario: usuarioName
-      })
+      .from(targetTable)
+      .update(updateData)
       .eq("boleta", boleta);
 
     if (error) {
@@ -374,7 +380,6 @@ app.post("/api/cases/create", async (req, res) => {
       tienda: tienda || null,
       fecha_deteccion: fechaDeteccion || getPeruDateString(),
       fecha_cierra: isClosed ? getPeruDateString() : null,
-      formato: formato || (sabana === "makro" ? "MAKRO" : (sabana === "fdc" ? "PLAZA VEA" : "MASS")),
       alerta: alerta || null,
       importe_abordado_muestra: montoNum,
       descripcion_evento: descripcion || null,
@@ -387,22 +392,22 @@ app.post("/api/cases/create", async (req, res) => {
       seccion: seccion || null,
       carta_descuento: cartaDescuento !== "" && cartaDescuento !== undefined ? Number(cartaDescuento) : null,
       contribucion_total_estimada: contribucionTotalEstimada !== "" && contribucionTotalEstimada !== undefined ? Number(contribucionTotalEstimada) : null,
-      contribucion_mensual: (normHallazgo === "HURTO" || normHallazgo === "ERROR OPERATIVO") ? montoNum : null,
       accion_disciplinaria: accDisciplinaria || null,
-      cargo_real: cargoReal || null,
-      comentarios_error_cstv: cstvDetail || null,
       usuario: usuarioName || null,
       actualizado_en: new Date().toISOString()
     };
 
-    let { error } = await getSupabase()
+    if (targetTable === "casos_fdc") {
+      payload.formato = formato || (sabana === "makro" ? "MAKRO" : (sabana === "fdc" ? "PLAZA VEA" : "MASS"));
+    } else {
+      payload.cargo_real = cargoReal || null;
+      payload.comentarios_error_cstv = cstvDetail || null;
+      payload.contribucion_mensual = (normHallazgo === "HURTO" || normHallazgo === "ERROR OPERATIVO") ? montoNum : null;
+    }
+
+    const { error } = await getSupabase()
       .from(targetTable)
       .upsert([payload], { onConflict: "boleta" });
-
-    if (error && targetTable === "casos_fdc") {
-      const fb = await getSupabase().from("casos_mass").upsert([payload], { onConflict: "boleta" });
-      error = fb.error;
-    }
 
     if (error) {
       throw new Error(`Error de Supabase: ${error.message}`);
@@ -428,15 +433,21 @@ app.post("/api/cases/bulk-create", async (req, res) => {
 
     const batchSize = 100;
     for (let i = 0; i < cases.length; i += batchSize) {
-      const batch = cases.slice(i, i + batchSize);
-      let { error } = await getSupabase()
+      const batch = cases.slice(i, i + batchSize).map((item: any) => {
+        const row = { ...item };
+        if (targetTable === "casos_fdc") {
+          delete row.cargo_real;
+          delete row.comentarios_error_cstv;
+          delete row.contribucion_mensual;
+        } else {
+          delete row.formato;
+        }
+        return row;
+      });
+
+      const { error } = await getSupabase()
         .from(targetTable)
         .upsert(batch, { onConflict: "boleta" });
-
-      if (error && targetTable === "casos_fdc") {
-        const fb = await getSupabase().from("casos_mass").upsert(batch, { onConflict: "boleta" });
-        error = fb.error;
-      }
 
       if (error) {
         throw new Error(`Error de Supabase: ${error.message}`);
