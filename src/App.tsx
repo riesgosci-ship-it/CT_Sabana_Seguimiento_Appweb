@@ -380,7 +380,7 @@ const fetchData = async () => {
     const todayStr = `${peruTime.getFullYear()}-${String(peruTime.getMonth() + 1).padStart(2, '0')}-${String(peruTime.getDate()).padStart(2, '0')}`;
 
     const finalFechaCierre = hallazgos ? todayStr : null;
-    const finalUsuario = hallazgos ? currentUserName : null;
+    const finalUsuario = currentUserName || currentUser || "Auditor";
 
     try {
       const currentRecord = rawRecords.find((rec) => String(rec["N° BOLETA"] || "").trim() === boleta.trim());
@@ -503,7 +503,7 @@ const fetchData = async () => {
       const todayStr = `${peruTime.getFullYear()}-${String(peruTime.getMonth() + 1).padStart(2, '0')}-${String(peruTime.getDate()).padStart(2, '0')}`;
 
       const finalFechaCierre = isClosed ? todayStr : null;
-      const finalUsuario = isClosed ? (currentUserName || currentUser || "Auditor") : null;
+      const finalUsuario = currentUserName || currentUser || "Auditor";
       const montoNum = Number(newRecordData["ABORADO"] ?? newRecordData["MONTO"] ?? 0);
 
       const contribucionMensual = (normalizedHallazgo === "HURTO" || normalizedHallazgo === "ERROR OPERATIVO")

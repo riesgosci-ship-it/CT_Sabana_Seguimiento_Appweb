@@ -106,6 +106,10 @@ export function parseCleanNumber(val: any, fallback: number = 0): number {
   return isNaN(num) ? fallback : num;
 }
 
+function isNumericOnlyValue(value: string): boolean {
+  return /^\d+(?:[.,]\d+)?$/.test(value.trim());
+}
+
 // Normalize a header key for resilient matching
 function normalizeHeaderKey(key: string): string {
   return key
@@ -464,6 +468,19 @@ export async function parseAlertsExcelFile(
     let rawTienda = String(findVal(HEADER_VARIANTS.tienda)).trim();
     let rawIdTienda = String(findVal(HEADER_VARIANTS.id_tienda)).trim();
 
+    // When both TIENDA and NOMBRE TIENDA exist, some source files place the
+    // numeric store ID under TIENDA. Prefer the textual store name in that case.
+    if (isNumericOnlyValue(rawTienda)) {
+      const textualStoreName = HEADER_VARIANTS.tienda
+        .map((variant) => rowNorm[variant])
+        .find((value) => value !== undefined && String(value).trim() !== "" && !isNumericOnlyValue(String(value)));
+      if (textualStoreName !== undefined) {
+        rawTienda = String(textualStoreName).trim();
+      } else if (rawIdTienda && storeMapById.has(rawIdTienda.toUpperCase())) {
+        rawTienda = storeMapById.get(rawIdTienda.toUpperCase()) || rawTienda;
+      }
+    }
+
     // Cross-fill tienda / id_tienda if one is missing
     if (!rawTienda && rawIdTienda && storeMapById.has(rawIdTienda.toUpperCase())) {
       rawTienda = storeMapById.get(rawIdTienda.toUpperCase()) || "";
@@ -482,6 +499,18 @@ export async function parseAlertsExcelFile(
     }
 
     let alerta = String(findVal(HEADER_VARIANTS.alerta)).trim();
+    // ALERTA must contain the alert name, never the numeric quantity.
+    // If the source has ALERTA=1.0 and a textual alert-name column, use the latter.
+    if (isNumericOnlyValue(alerta)) {
+      const textualAlertName = HEADER_VARIANTS.alerta
+        .map((variant) => rowNorm[variant])
+        .find((value) => value !== undefined && String(value).trim() !== "" && !isNumericOnlyValue(String(value)));
+      if (textualAlertName !== undefined) {
+        alerta = String(textualAlertName).trim();
+      } else {
+        alerta = defaultAlerta;
+      }
+    }
     if (!alerta) {
       alerta = defaultAlerta;
     }
@@ -514,7 +543,7 @@ export async function parseAlertsExcelFile(
     const comentarios = String(findVal(HEADER_VARIANTS.comentarios)).trim() || undefined;
 
     const finalFechaCierre = isClosed ? todayStr : null;
-    const finalUsuario = isClosed ? (currentUserName || "Auditor") : null;
+    const finalUsuario = currentUserName || "Auditor";
     const contribucionMensual = (normHallazgo === "HURTO" || normHallazgo === "ERROR OPERATIVO") ? monto : null;
 
     // Database payload adaptado estrictamente al esquema de la tabla de destino
